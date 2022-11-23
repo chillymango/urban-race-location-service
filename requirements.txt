@@ -1,0 +1,8 @@
+Flask
+Flask-SQLAlchemy
+gevent
+SQLAlchemy
+networkx
+paho-mqtt
+requests
+IPython
