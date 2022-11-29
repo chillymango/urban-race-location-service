@@ -24,6 +24,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument("--redis_port", default=6379)
     parser.add_argument("--mqtt_user", default="mqtt-user")
     parser.add_argument("--mqtt_password", default="mqtt-password")
+    parser.add_argument("--flush", action="store_true")
     return parser
 
 
@@ -33,6 +34,9 @@ def main() -> None:
 
     r_client = redis.Redis(host=args.redis_address, port=args.redis_port, db=0, password=REDIS_AUTH)
     print('setup redis')
+    if args.flush:
+        print('flushing db')
+        r_client.flushall()
     m_client = mqtt_client.Client(f"mqtt-location-cache-{random.randint(1000, 9999)}")
     m_client.username_pw_set(args.mqtt_user, args.mqtt_password)
     def on_connect(client, userdata, flags, rc):
@@ -55,7 +59,10 @@ def main() -> None:
         uuid = entity.get("uuid")
         if uuid is None:
             raise ValueError("Malformed packet - no uuid")
-        r_client.set(uuid, json.dumps(entity))
+        device_id = entity.get("device_id")
+        if device_id is None:
+            raise ValueError("Malformed entity - no device ID")
+        r_client.set(device_id, json.dumps(entity))
 
     m_client.on_message = publish_to_redis
     print('yaeeet')
