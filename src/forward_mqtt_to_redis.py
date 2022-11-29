@@ -63,6 +63,7 @@ def main() -> None:
         if device_id is None:
             raise ValueError("Malformed entity - no device ID")
         r_client.set(device_id, json.dumps(entity))
+        r_client.expire(device_id, 300)  # have a TTL of 5 minutes
 
     m_client.on_message = publish_to_redis
     print('yaeeet')
