@@ -4,5 +4,6 @@ gevent
 SQLAlchemy
 networkx
 paho-mqtt
+redis
 requests
 IPython
