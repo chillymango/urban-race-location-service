@@ -25,9 +25,16 @@ from src.util.distance import meters_between_points
 from src.util.mqtt import CLIENT
 from src.util.osm_dir import OSM_DIR
 
+# this is needed to fix namespacing for pickle
+import sys
+sys.modules['__main__'].Node = Node
+
 
 BOT_ID = None
 BACKEND_URL = "https://urbanrace.fugitive.link"
+
+
+MAP_CACHE = {region: Map.read_from_cache(os.path.join(OSM_DIR, region, "map.gpickle")) for region in os.listdir(OSM_DIR)}
 
 
 class BotProfile(int, Enum):
@@ -80,27 +87,21 @@ def check_out_bot(profile: BotProfile, backend_url: str) -> str:
     resp = requests.post(f"{backend_url}/api/bots/check_out", json={'bot_type': bot_type})
     resp.raise_for_status()
 
-    global BOT_ID
-    BOT_ID = json.loads(resp.text)["bot_id"]
-    return BOT_ID
+    return json.loads(resp.text)["bot_id"]
 
 
-def check_in_bot() -> None:
-    if BOT_ID is None:
-        return
-
+def check_in_bot(bot_id: str) -> None:
     msg = dict(
         transactionId=-1,
-        idsToRemove=[BOT_ID]
+        idsToRemove=[bot_id]
     )
     cts = 0
     while cts < 3:
         CLIENT.publish("gamestate-Location-Remove", json.dumps(msg))
         time.sleep(1.00)  # wow networking sucks
         cts += 1
-    resp = requests.post(f"{BACKEND_URL}/api/bots/check_in", json={'bot_id': BOT_ID})
+    resp = requests.post(f"{BACKEND_URL}/api/bots/check_in", json={'bot_id': bot_id})
     resp.raise_for_status()
-    BOT_ID = None
 
 
 @contextmanager
@@ -111,7 +112,7 @@ def bot_context(profile: BotProfile, backend_url: str) -> T.Iterator[str]:
         yield bot_id
     finally:
         if bot_id is not None:
-            check_in_bot()
+            check_in_bot(bot_id)
 
 
 def fmt_location_message(client_id: str, latitude: float, longitude: float) -> T.Dict:
@@ -152,7 +153,8 @@ def do_ramble_bot(
     start_lon: float = None,
     speed: float = 2.0,  # speed in meters per second
     duration: float = None,
-    broadcast_period: float = 1.0
+    broadcast_period: float = 1.0,
+    verbose: bool = True
 ):
     """
     Ramble Bot Rules:
@@ -163,6 +165,10 @@ def do_ramble_bot(
      * when the bot closes proximity with a waypoint to within 10m, it will pick the next waypoint
        if there is one enqueued, or it will enqueue itself a new one.
     """
+    def _print(msg: str) -> None:
+        if verbose:
+            print(msg)
+
     off = threading.Event()
     setup_shutdown_timer(duration, off)
 
@@ -184,7 +190,7 @@ def do_ramble_bot(
         start = map.get_random_node()
         pos = (start.lat, start.lon)
 
-    print(f'Ramble bot proceeding to ({start.lat}, {start.lon}) first')
+    _print(f'Ramble bot proceeding to ({start.lat}, {start.lon}) first')
 
     # initial position, not the start route position
     node = None
@@ -210,11 +216,11 @@ def do_ramble_bot(
                 # figure out the path to that new waypoint
                 path_to_new_waypoint = map.get_shortest_route_between_points(node, new_waypoint)[1:]
                 if not path_to_new_waypoint:
-                    print('Warning: random point is not connected')
+                    _print('Warning: random point is not connected')
                     time.sleep(1.)
                     continue
 
-                print(f'Adding waypoints: {path_to_new_waypoint}')
+                _print(f'Adding waypoints: {path_to_new_waypoint}')
                 for path_point in path_to_new_waypoint:
                     waypoints.append(path_point.ref_id)
                 break
@@ -236,7 +242,7 @@ def do_ramble_bot(
             # TODO: make this configurable
             if random.random() < 0.01:
                 wait = random.randint(15, 120)
-                print(f'We are taking a break here for {wait}s')
+                _print(f'We are taking a break here for {wait}s')
                 do_stationary_bot(
                     bot_id,
                     *pos,
@@ -262,10 +268,65 @@ def do_ramble_bot(
         pos = (new_lat, new_lon)
 
         # create message and push it
-        print(pos)
+        _print(pos)
         msg_dict = fmt_location_message(bot_id, pos[0], pos[1])
         CLIENT.publish("gamestate-Location-Update", json.dumps(msg_dict))
         time.sleep(broadcast_period)
+
+
+def execute(
+    region: str,
+    profile: BotProfile,
+    latitude: float,
+    longitude: float,
+    duration: float,
+    broadcast_period: float,
+    speed: float,
+    backend_url: str,
+    silent: bool = False
+) -> None:
+    with bot_context(profile, backend_url) as bot_id:
+        if profile == BotProfile.STATIONARY:
+            do_stationary_bot(
+                bot_id,
+                latitude,
+                longitude,
+                duration,
+                broadcast_period
+            )
+            return
+
+        region_dir = os.path.join(OSM_DIR, region)
+        if not os.path.exists(region_dir):
+            raise OSError(f"No region files found at {region_dir}")
+
+        if region not in MAP_CACHE:
+            raise ValueError(f"No map loaded for {region}")
+        map = MAP_CACHE[region]
+
+        if profile == BotProfile.RAMBLE:
+            do_ramble_bot(
+                bot_id,
+                map,
+                latitude,
+                longitude,
+                speed=speed,
+                duration=duration,
+                broadcast_period=broadcast_period,
+                verbose=not silent,
+            )
+        elif profile == BotProfile.RAMBLE_TEAM:
+            # check out an additional bot
+            # TODO: figure this out
+            pass
+        elif profile == BotProfile.HUNT_FLY:
+            # TODO: implement
+            pass
+        elif profile == BotProfile.HUNT_ROAD:
+            # TODO: implement
+            pass
+        else:
+            raise ValueError(f"We don't support {profile} (yet)")
 
 
 def main() -> None:
@@ -276,51 +337,17 @@ def main() -> None:
     if args.backend_url != BACKEND_URL:
         BACKEND_URL = args.backend_url
 
-    with bot_context(args.profile, args.backend_url) as bot_id:
-        if args.profile == BotProfile.STATIONARY:
-            do_stationary_bot(
-                bot_id,
-                args.latitude,
-                args.longitude,
-                args.duration,
-                args.broadcast_period
-            )
-            return
-
-        region_dir = os.path.join(OSM_DIR, args.region)
-        if not os.path.exists(region_dir):
-            raise OSError(f"No region files found at {region_dir}")
-
-        map = Map.read_from_cache(os.path.join(OSM_DIR, args.region, "map.gpickle"))
-        if args.profile == BotProfile.RAMBLE:
-            do_ramble_bot(
-                bot_id,
-                map,
-                args.latitude,
-                args.longitude,
-                speed=args.speed,
-                duration=args.duration,
-                broadcast_period=args.broadcast_period,
-            )
-        elif args.profile == BotProfile.RAMBLE_TEAM:
-            # check out an additional bot
-            # TODO: figure this out
-            pass
-        elif args.profile == BotProfile.HUNT_FLY:
-            # TODO: implement
-            pass
-        elif args.profile == BotProfile.HUNT_ROAD:
-            # TODO: implement
-            pass
-        else:
-            raise ValueError(f"We don't support {args.profile} (yet)")
-
-
-def sigterm_handler(signum, frame) -> None:
-    check_in_bot()
-    exit(0)
+    execute(
+        args.region,
+        args.profile,
+        args.latitude,
+        args.longitude,
+        args.duration,
+        args.broadcast_period,
+        args.speed,
+        args.backend_url
+    )
 
 
 if __name__ == "__main__":
-    signal.signal(signal.SIGTERM, sigterm_handler)
     main()

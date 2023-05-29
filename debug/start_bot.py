@@ -12,4 +12,3 @@ if __name__ == "__main__":
         longitude=-122.39432425057922,
     )
     res = requests.post('http://localhost:8080/start', json=request.dict())
-    import IPython; IPython.embed()
