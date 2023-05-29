@@ -272,6 +272,7 @@ def main() -> None:
     parser = get_parser()
     args = parser.parse_args()
 
+    global BACKEND_URL
     if args.backend_url != BACKEND_URL:
         BACKEND_URL = args.backend_url
 
