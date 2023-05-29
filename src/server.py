@@ -1,8 +1,12 @@
+from gevent import monkey
+monkey.patch_all()
+
 import os
 import random
 import subprocess
 import sys
 from flask import Flask, request, jsonify
+from gevent.pywsgi import WSGIServer
 from threading import Timer
 from uuid import uuid4
 from pydantic import BaseModel
@@ -90,4 +94,5 @@ def terminate_subprocess(handle):
 
 if __name__ == '__main__':
     print("Starting server")
-    app.run(host='127.0.0.1', port=8080)
+    server = WSGIServer(('0.0.0.0', 8080), app)
+    server.serve_forever()
