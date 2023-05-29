@@ -2,7 +2,7 @@ Flask
 Flask-SQLAlchemy
 gevent
 SQLAlchemy
-networkx
+networkx<3  # TODO: update
 paho-mqtt
 redis
 requests
