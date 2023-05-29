@@ -103,8 +103,12 @@ if __name__ == '__main__':
         server = WSGIServer(('0.0.0.0', 8080), app)
         server.serve_forever()
     finally:
+        print("Terminating processes")
         for process in subprocesses.values():
             try:
                 process.terminate()
             except Exception as exc:
                 print(f"Encountered exception during process termination: {repr(exc)}")
+            if process.poll() is not None:
+                process.kill()
+
