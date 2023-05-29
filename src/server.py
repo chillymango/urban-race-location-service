@@ -5,6 +5,7 @@ import os
 import random
 import subprocess
 import sys
+import typing as T
 from flask import Flask, request, jsonify
 from gevent.pywsgi import WSGIServer
 from threading import Timer
@@ -14,10 +15,13 @@ from pydantic import Field
 from src.process.run_bot import BotProfile
 from src.util.osm_dir import OSM_DIR
 
+if T.TYPE_CHECKING:
+    from uuid import UUID
+
 app = Flask(__name__)
 
 # This will hold our subprocesses, using a unique handle for each one.
-subprocesses = {}
+subprocesses: T.Dict[UUID, subprocess.Popen] = {}
 
 
 LOCATION_JITTER = (0.0003, 0.0003)
@@ -92,7 +96,15 @@ def terminate_subprocess(handle):
 
     return 'success'
 
+
 if __name__ == '__main__':
     print("Starting server")
-    server = WSGIServer(('0.0.0.0', 8080), app)
-    server.serve_forever()
+    try:
+        server = WSGIServer(('0.0.0.0', 8080), app)
+        server.serve_forever()
+    finally:
+        for process in subprocesses.values():
+            try:
+                process.terminate()
+            except Exception as exc:
+                print(f"Encountered exception during process termination: {repr(exc)}")
