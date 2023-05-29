@@ -21,7 +21,7 @@ if T.TYPE_CHECKING:
 app = Flask(__name__)
 
 # This will hold our subprocesses, using a unique handle for each one.
-subprocesses: T.Dict[UUID, subprocess.Popen] = {}
+subprocesses: T.Dict["UUID", subprocess.Popen] = {}
 
 
 LOCATION_JITTER = (0.0003, 0.0003)
