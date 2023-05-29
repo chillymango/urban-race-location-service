@@ -9,7 +9,7 @@ from paho.mqtt import client as mqtt_client
 from paho.mqtt.client import _socketpair_compat
 
 
-def init_client(broker="3.17.24.212", port=1883) -> mqtt_client.Client:
+def init_client(broker="13.56.212.128", port=1883) -> mqtt_client.Client:
     client = mqtt_client.Client(
         client_id=f"mqtt-publish-task-claims-{random.randint(1000, 10000)}"
     )

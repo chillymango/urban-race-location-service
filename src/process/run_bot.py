@@ -25,7 +25,7 @@ from src.util.mqtt import CLIENT
 from src.util.osm_dir import OSM_DIR
 
 
-class BotProfile(Enum):
+class BotProfile(int, Enum):
     STATIONARY = 0
     RAMBLE = 1
     RAMBLE_TEAM = 2
@@ -44,7 +44,7 @@ def get_parser() -> argparse.ArgumentParser:
     parser.add_argument("--backend-url", default="https://urbanrace.fugitive.link")
     parser.add_argument("--speed", type=float, default=1.5)  # walking speed
     parser.add_argument("--broadcast-period", type=float, default=3.0, help="default only broadcast a location every 1s")
-    parser.add_argument("--duration", help="if specified, how long to run the bot for. If not specified, run forever.")
+    parser.add_argument("--duration", type=float, help="if specified, how long to run the bot for. If not specified, run forever.")
     parser.add_argument("--repath-period", default=5.0, help="how often to recalculate trajectory")
     return parser
 
@@ -223,7 +223,7 @@ def do_ramble_bot(
             # we have a chance of stopping at this point for some period of time
             # TODO: make this configurable
             if random.random() < 0.01:
-                wait = random.randint(15, 600)
+                wait = random.randint(15, 120)
                 print(f'We are taking a break here for {wait}s')
                 do_stationary_bot(
                     bot_id,

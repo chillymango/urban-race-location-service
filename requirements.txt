@@ -7,3 +7,4 @@ paho-mqtt
 redis
 requests
 IPython
+pydantic
