@@ -9,6 +9,7 @@ import json
 import os
 import random
 import requests
+import signal
 import threading
 import time
 import typing as T
@@ -23,6 +24,10 @@ from src.util.distance import dist_range
 from src.util.distance import meters_between_points
 from src.util.mqtt import CLIENT
 from src.util.osm_dir import OSM_DIR
+
+
+BOT_ID = None
+BACKEND_URL = "https://urbanrace.fugitive.link"
 
 
 class BotProfile(int, Enum):
@@ -74,21 +79,28 @@ def check_out_bot(profile: BotProfile, backend_url: str) -> str:
     bot_type = map_bot_type(profile)
     resp = requests.post(f"{backend_url}/api/bots/check_out", json={'bot_type': bot_type})
     resp.raise_for_status()
-    return json.loads(resp.text)["bot_id"]
+
+    global BOT_ID
+    BOT_ID = json.loads(resp.text)["bot_id"]
+    return BOT_ID
 
 
-def check_in_bot(bot_id: str, backend_url: str) -> None:
+def check_in_bot() -> None:
+    if BOT_ID is None:
+        return
+
     msg = dict(
         transactionId=-1,
-        idsToRemove=[bot_id]
+        idsToRemove=[BOT_ID]
     )
     cts = 0
     while cts < 3:
         CLIENT.publish("gamestate-Location-Remove", json.dumps(msg))
         time.sleep(1.00)  # wow networking sucks
         cts += 1
-    resp = requests.post(f"{backend_url}/api/bots/check_in", json={'bot_id': bot_id})
+    resp = requests.post(f"{BACKEND_URL}/api/bots/check_in", json={'bot_id': BOT_ID})
     resp.raise_for_status()
+    BOT_ID = None
 
 
 @contextmanager
@@ -99,7 +111,7 @@ def bot_context(profile: BotProfile, backend_url: str) -> T.Iterator[str]:
         yield bot_id
     finally:
         if bot_id is not None:
-            check_in_bot(bot_id, backend_url)
+            check_in_bot()
 
 
 def fmt_location_message(client_id: str, latitude: float, longitude: float) -> T.Dict:
@@ -260,6 +272,9 @@ def main() -> None:
     parser = get_parser()
     args = parser.parse_args()
 
+    if args.backend_url != BACKEND_URL:
+        BACKEND_URL = args.backend_url
+
     with bot_context(args.profile, args.backend_url) as bot_id:
         if args.profile == BotProfile.STATIONARY:
             do_stationary_bot(
@@ -300,5 +315,11 @@ def main() -> None:
             raise ValueError(f"We don't support {args.profile} (yet)")
 
 
+def sigterm_handler(signum, frame) -> None:
+    check_in_bot()
+    exit(0)
+
+
 if __name__ == "__main__":
+    signal.signal(signal.SIGTERM, sigterm_handler)
     main()
