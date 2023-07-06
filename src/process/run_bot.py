@@ -77,14 +77,14 @@ def map_bot_type(profile: BotProfile) -> str:
     return mapping[profile]
 
 
-def check_out_bot(profile: BotProfile, backend_url: str) -> str:
+def check_out_bot(profile: BotProfile, masquerade_as: str, backend_url: str) -> str:
     """
     Issue a backend request to check out a bot.
 
     Returns the bot ID if successful. Throws exception if not.
     """
     bot_type = map_bot_type(profile)
-    resp = requests.post(f"{backend_url}/api/bots/check_out", json={'bot_type': bot_type})
+    resp = requests.post(f"{backend_url}/api/bots/check_out", json={'bot_type': bot_type, 'masquerade_as': masquerade_as})
     resp.raise_for_status()
 
     return json.loads(resp.text)["bot_id"]
@@ -105,10 +105,10 @@ def check_in_bot(bot_id: str) -> None:
 
 
 @contextmanager
-def bot_context(profile: BotProfile, backend_url: str) -> T.Iterator[str]:
+def bot_context(profile: BotProfile, masquerade_as: str, backend_url: str) -> T.Iterator[str]:
     bot_id = None
     try:
-        bot_id = check_out_bot(profile, backend_url)
+        bot_id = check_out_bot(profile, masquerade_as, backend_url)
         yield bot_id
     finally:
         if bot_id is not None:
@@ -283,9 +283,10 @@ def execute(
     broadcast_period: float,
     speed: float,
     backend_url: str,
+    masquerade_as: str = "",
     silent: bool = False
 ) -> None:
-    with bot_context(profile, backend_url) as bot_id:
+    with bot_context(profile, masquerade_as, backend_url) as bot_id:
         if profile == BotProfile.STATIONARY:
             do_stationary_bot(
                 bot_id,

@@ -39,6 +39,7 @@ class StartBotRequest(BaseModel):
     duration: float = Field(default=300.0)
     broadcast_period: float = Field(default=1.0)
     repath_period: float = Field(default=5.0)
+    masquerade_as: str = Field(default="")
 
 
 @app.route('/start', methods=['POST'])
