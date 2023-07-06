@@ -65,6 +65,7 @@ def start_subprocess():
         start_bot_request.broadcast_period,
         start_bot_request.speed,
         BACKEND_URL,
+        start_bot_request.masquerade_as,
     )
     kwargs = {
         'silent': True
