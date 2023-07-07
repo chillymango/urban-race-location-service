@@ -90,6 +90,17 @@ class Map:
         # for each way element, join all nodes and create a path
         way_elements = root.findall('way')
         for way_element in way_elements:
+
+            # don't include ferrys
+            is_ferry = False
+            for tag in way_element.findall('tag'):
+                if tag.attrib['k'] == "route" and tag.attrib['v'] == "ferry":
+                    is_ferry = True
+                    break
+
+            if is_ferry:
+                continue
+
             edges_with_data = []
             node_pairs: T.Iterable[T.Tuple[ET.Element, ET.Element]] = zip(way_element.findall('nd')[:-1], way_element.findall('nd')[1:])
             for e1, e2 in node_pairs:

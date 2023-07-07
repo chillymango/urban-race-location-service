@@ -8,3 +8,4 @@ redis
 requests
 IPython
 pydantic
+geopy

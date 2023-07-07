@@ -1,6 +1,7 @@
 from gevent import monkey
 monkey.patch_all()
 
+import math
 import os
 import random
 import subprocess
@@ -8,6 +9,7 @@ import sys
 import threading
 import typing as T
 from flask import Flask, request, jsonify
+from geopy import distance
 from gevent.pywsgi import WSGIServer
 from threading import Timer
 from uuid import uuid4
@@ -16,6 +18,7 @@ from pydantic import Field
 from src.process.run_bot import BACKEND_URL
 from src.process.run_bot import BotProfile
 from src.process.run_bot import execute
+from src.process.run_bot import MAP_CACHE
 from src.util.osm_dir import OSM_DIR
 
 if T.TYPE_CHECKING:
@@ -79,6 +82,55 @@ def start_subprocess():
 
     # Return the handle to the client.
     return jsonify({'handle': handle}), 200
+
+
+class GetRouteRequest(BaseModel):
+
+    speed: float = 2.0  # meters per second
+    duration: float = 5 * 60 * 60.0  # five hours of travel in game time, almost certainly won't need this
+    latitude: float  # starting latitude
+    longitude: float  # starting longitude
+    region: str = "sf_north_beach"
+
+
+class Waypoint(BaseModel):
+    game_time: float
+    latitude: float
+    longitude: float
+
+
+class GetRouteResponse(BaseModel):
+    nodes: T.List[Waypoint]
+
+
+@app.route("/get_route", methods=["POST"])
+def api_get_route():
+    """
+    Return a path with some parameters.
+    """
+    route_request = GetRouteRequest.parse_obj(request.json)
+    map = MAP_CACHE.get(route_request.region)
+    if map is None:
+        raise ValueError(f"Invalid map {route_request.region}")
+
+    distance_traveled = 0.0
+    game_time = 0.0
+    start = map.get_closest_node_to_point(route_request.latitude, route_request.longitude)
+    output = []
+    output.append(Waypoint(game_time=game_time, latitude=start.latitude, longitude=start.longitude))
+    prev_node = start
+    while game_time < route_request.duration:
+        # find the next node
+        next_node = map.get_random_node()
+        path = map.get_shortest_route_between_points(prev_node, next_node)
+        for node1, node2 in zip(path[:-1], path[1:]):
+            dist = distance.distance((node1.latitude, node1.longitude), (node2.latitude, node2.longitude)).meters
+            distance_traveled += dist
+            time_delta = dist / route_request.speed
+            game_time += time_delta
+            output.append(Waypoint(game_time=game_time, latitude=node2.latitude, longitude=node2.longitude))
+
+    return jsonify(GetRouteResponse(nodes=output).dict()), 200
 
 
 if __name__ == '__main__':

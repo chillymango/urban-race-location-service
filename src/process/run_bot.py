@@ -16,6 +16,7 @@ import typing as T
 from collections import deque
 from contextlib import contextmanager
 from enum import Enum
+from pydantic import BaseModel
 
 from src.generate_routes import Map
 from src.generate_routes import Node
@@ -35,6 +36,26 @@ BACKEND_URL = "https://urbanrace.fugitive.link"
 
 
 MAP_CACHE = {region: Map.read_from_cache(os.path.join(OSM_DIR, region, "map.gpickle")) for region in os.listdir(OSM_DIR)}
+
+
+class GenerationType(int, Enum):
+    UNKNOWN = 0
+    PRESET = 1
+    RANDOM = 2
+
+
+class PointOfInterest(BaseModel):
+    """
+    Collection model for POI
+    """
+    uuid: str
+    name: str
+    latitude: float
+    longitude: float
+    feature: str  # TODO: consider making this an enumerated value for performance
+    metatype: GenerationType
+    is_active: bool
+    visibility_range: float
 
 
 class BotProfile(int, Enum):
