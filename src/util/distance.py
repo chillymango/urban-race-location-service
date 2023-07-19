@@ -1,31 +1,17 @@
 import math
 import typing as T
+from geopy import distance
 
 
 EARTH_RADIUS_METERS = 6371E3
 
 
 def dist_range(lat0: float, lon0: float, lat1: float, lon1: float) -> float:
-    return math.sqrt(math.pow(abs(lat0 - lat1), 2) + math.pow(abs(lon0 - lon1), 2))
+    return distance.distance((lat0, lon0), (lat1, lon1)).meters
 
 
 def meters_between_points(lat0: float, lon0: float, lat1: float, lon1: float) -> float:
-    lat0 = float(lat0)
-    lon0 = float(lon0)
-    lat1 = float(lat0)
-    lon1 = float(lon1)
-    phi0 = lat0 * math.pi / 180
-    phi1 = lat1 * math.pi / 180
-    dphi = (lat1 - lat0) * math.pi / 180
-    dlam = (lon1 - lon0) * math.pi / 180
-
-    a = (
-        math.sin(dphi / 2) * math.sin(dphi / 2)
-        + math.cos(phi0) * math.cos(phi1) * math.sin(dlam / 2) * math.sin(dlam / 2)
-    )
-    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
-
-    return EARTH_RADIUS_METERS * c
+    return distance.distance((lat0, lon0), (lat1, lon1)).meters
 
 
 def get_delta_between_points(dist: float, lat0: float, lon0: float, lat1: float, lon1: float) -> T.Tuple[float, float]:

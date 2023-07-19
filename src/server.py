@@ -30,7 +30,7 @@ app = Flask(__name__)
 subprocesses: T.Dict["UUID", threading.Thread] = {}
 
 
-LOCATION_JITTER = (0.0006, 0.0006)
+LOCATION_JITTER = (0.0008, 0.0008)
 
 
 class StartBotRequest(BaseModel):
@@ -38,10 +38,12 @@ class StartBotRequest(BaseModel):
     bot_type: BotProfile
     latitude: float
     longitude: float
-    speed: float = Field(default=1.5)
+    speed: float = Field(default=1.0)
     duration: float = Field(default=300.0)
-    broadcast_period: float = Field(default=1.0)
+    broadcast_period: float = Field(default=5.0)
     repath_period: float = Field(default=5.0)
+    # if bot profile is single target, masquerade as single user.
+    # otherwise, masquerade as team.
     masquerade_as: str = Field(default="")
 
 
@@ -77,7 +79,6 @@ def start_subprocess():
     thread.daemon = True
     thread.start()
     # TODO: do we want to log errors?
-    #subproc = subprocess.Popen([str(x) for x in cmd], stdout=open(os.devnull), stderr=open(os.devnull))
     subprocesses[handle] = thread
 
     # Return the handle to the client.
